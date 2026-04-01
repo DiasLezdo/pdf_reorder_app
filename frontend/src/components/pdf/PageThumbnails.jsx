@@ -1,12 +1,15 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
-import { Trash2, PlusCircle } from 'lucide-react';
+import { Trash2, PlusCircle, Loader2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Document, Page } from 'react-pdf';
 
-function SortableItem({ page, index, isActive, onClick, onRemove, onAddBlank }) {
+const API_BASE = 'http://localhost:5000/api';
+
+function SortableItem({ page, index, isActive, onClick, onRemove, onAddBlank, files, documentId }) {
   const {
     attributes,
     listeners,
@@ -21,31 +24,44 @@ function SortableItem({ page, index, isActive, onClick, onRemove, onAddBlank }) 
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={`relative p-3 border-b cursor-grab active:cursor-grabbing hover:bg-gray-100 ${isActive ? 'bg-blue-50 border-blue-200' : 'border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-2">
-         <div {...attributes} {...listeners} className="flex-1">
-           <span className="text-xs font-bold text-gray-500">Page {index + 1}</span>
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={`relative p-3 border-b cursor-grab active:cursor-grabbing hover:bg-gray-100 transition-colors ${isActive ? 'bg-blue-50 border-blue-200' : 'border-gray-200'}`}
+    >
+      <div className="flex items-center justify-between mb-2 select-none">
+         <div {...attributes} {...listeners} className="flex-1 overflow-hidden">
+           <span className="text-xs font-bold text-gray-500 truncate block">Page {index + 1}</span>
          </div>
-         <div className="flex space-x-1">
-            <button onClick={(e) => {e.stopPropagation(); onAddBlank(index);}} title="Add Blank Page after" className="p-1 hover:bg-gray-200 rounded text-green-600">
+         <div className="flex space-x-1 flex-shrink-0">
+            <button onClick={(e) => {e.stopPropagation(); onAddBlank(index);}} title="Add Blank Page after" className="p-1 hover:bg-gray-200 rounded text-green-600 transition-colors">
                <PlusCircle className="w-3 h-3" />
             </button>
-            <button onClick={(e) => {e.stopPropagation(); onRemove(index);}} title="Remove Page" className="p-1 hover:bg-gray-200 rounded text-red-500">
+            <button onClick={(e) => {e.stopPropagation(); onRemove(index);}} title="Remove Page" className="p-1 hover:bg-gray-200 rounded text-red-500 transition-colors">
                <Trash2 className="w-3 h-3" />
             </button>
          </div>
       </div>
       <div 
         onClick={onClick}
-        className={`w-full aspect-[1/1.414] bg-white border shadow-sm flex items-center justify-center overflow-hidden cursor-pointer ${isActive ? 'ring-2 ring-blue-500' : ''}`}
+        className={`w-full aspect-[1/1.414] bg-white border shadow-sm flex items-center justify-center overflow-hidden cursor-pointer transition-all ${isActive ? 'ring-2 ring-blue-500' : 'hover:border-blue-300'}`}
       >
         {page.originalPageNumber === -1 ? (
            <span className="text-xs text-gray-400">Blank Page</span>
         ) : (
-           <div className="text-xs text-center text-gray-400 flex flex-col">
-             <span>Src File: {page.fileIndex + 1}</span>
-             <span>Src Page: {page.originalPageNumber}</span>
-             {/* Note: Generating thumbnails of PDF requires rendering. We mock it for performance/simplicity here unless a specific thumbnail URL is available */}
+           <div className="w-full h-full pointer-events-none overflow-hidden flex items-center justify-center bg-gray-50">
+             <Document
+               file={`${API_BASE}/documents/${documentId}/pdf-proxy?fileIndex=${page.fileIndex}`}
+               loading={<Loader2 className="animate-spin w-4 h-4 text-gray-300" />}
+               error={<span className="text-[10px] text-red-400">Error</span>}
+             >
+                <Page 
+                  pageNumber={page.originalPageNumber} 
+                  width={150} 
+                  renderTextLayer={false} 
+                  renderAnnotationLayer={false}
+                />
+             </Document>
            </div>
         )}
       </div>
@@ -53,7 +69,7 @@ function SortableItem({ page, index, isActive, onClick, onRemove, onAddBlank }) 
   );
 }
 
-export default function PageThumbnails({ pages, activePageIndex, setActivePageIndex, handleDragEnd, setPages }) {
+export default function PageThumbnails({ pages, activePageIndex, setActivePageIndex, handleDragEnd, setPages, files, documentId }) {
   const parentRef = useRef();
 
   const rowVirtualizer = useVirtualizer({
@@ -125,6 +141,8 @@ export default function PageThumbnails({ pages, activePageIndex, setActivePageIn
                            onClick={() => setActivePageIndex(virtualRow.index)}
                            onRemove={removePage}
                            onAddBlank={addBlankPage}
+                           files={files}
+                           documentId={documentId}
                          />
                      </div>
                    );

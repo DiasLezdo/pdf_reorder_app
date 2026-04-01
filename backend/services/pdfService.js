@@ -134,6 +134,25 @@ exports.mergeAndStampPdf = async (docData) => {
       const outlineRootRef = context.nextRef();
       const outlineItems = [];
 
+      // 1. "Go Back" (History) - Works best in Adobe Acrobat/Desktop viewers
+      const goBackRef = context.nextRef();
+      outlineItems.push({
+        ref: goBackRef,
+        title: 'Go Back (History)',
+        action: {
+          S: PDFName.of('Named'),
+          N: PDFName.of('GoBack'),
+        }
+      });
+
+      // 2. "Main Index" - Reliable fallback that always works in all viewers
+      const mainIndexRef = context.nextRef();
+      outlineItems.push({
+        ref: mainIndexRef,
+        title: 'Main Index',
+        dest: [pageRefs[0], PDFName.of('Fit')]
+      });
+
       for (let i = 0; i < activeBookmarks.length; i++) {
         const item = activeBookmarks[i];
         const targetIdx = item.targetPageNumber + indexPageOffset - 1;
@@ -143,7 +162,7 @@ exports.mergeAndStampPdf = async (docData) => {
         outlineItems.push({
           ref: itemRef,
           title: item.sectionTitle,
-          dest: pageRefs[targetIdx]
+          dest: [pageRefs[targetIdx], PDFName.of('Fit')]
         });
       }
 
@@ -152,9 +171,16 @@ exports.mergeAndStampPdf = async (docData) => {
           const item = outlineItems[i];
           const dict = context.obj({
             Title: PDFString.of(item.title),
-            Dest: [item.dest, PDFName.of('Fit')],
             Parent: outlineRootRef,
           });
+
+          console.log(`Processing bookmark: ${item.title}`);
+          if (item.action) {
+            const actionDict = context.obj(item.action);
+            dict.set(PDFName.of('A'), actionDict);
+          } else if (item.dest) {
+            dict.set(PDFName.of('Dest'), context.obj(item.dest));
+          }
 
           if (i > 0) dict.set(PDFName.of('Prev'), outlineItems[i - 1].ref);
           if (i < outlineItems.length - 1) dict.set(PDFName.of('Next'), outlineItems[i + 1].ref);

@@ -202,6 +202,8 @@ export default function Editor() {
              setActivePageIndex={setActivePageIndex}
              handleDragEnd={handleDragEnd}
              setPages={setPages}
+             files={docData.files}
+             documentId={id}
            />
         </div>
 
