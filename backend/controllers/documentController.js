@@ -7,25 +7,32 @@ exports.uploadDocuments = async (req, res) => {
   try {
     console.log('--- Upload Started ---');
     console.log('Body:', req.body);
-    console.log('Files received:', req.files?.length || 0);
-
-    const { title } = req.body;
     
-    if (!req.files || req.files.length === 0) {
-      console.error('Upload Error: No files in request');
-      return res.status(400).json({ error: 'No files uploaded' });
+    const { title, filesMetadata } = req.body;
+    
+    let parsedFilesMetadata = [];
+    if (filesMetadata) {
+      parsedFilesMetadata = typeof filesMetadata === 'string' ? JSON.parse(filesMetadata) : filesMetadata;
     }
 
-    const filesData = req.files.map(file => ({
-      originalName: file.originalname,
-      cloudinaryUrl: file.path,
-      cloudinaryPublicId: file.filename,
-      mimeType: file.mimetype,
-      size: file.size,
-    }));
+    let filesData = [];
+    if (parsedFilesMetadata && parsedFilesMetadata.length > 0) {
+      console.log('Using pre-uploaded files metadata:', parsedFilesMetadata.length);
+      filesData = parsedFilesMetadata;
+    } else if (req.files && req.files.length > 0) {
+      console.log('Using files from multer:', req.files.length);
+      filesData = req.files.map(file => ({
+        originalName: file.originalname,
+        cloudinaryUrl: file.path,
+        cloudinaryPublicId: file.filename,
+        mimeType: file.mimetype,
+        size: file.size,
+      }));
+    } else {
+      console.error('Upload Error: No files provided');
+      return res.status(400).json({ error: 'No files provided' });
+    }
 
-    // For simplicity, store just one unified sequence of pages initially 
-    // Usually, you'd extract total pages per file using pdf-lib here or on client side.
     const pages = [];
     for (let i = 0; i < filesData.length; i++) {
         const pageCount = await pdfService.getPageCount(filesData[i].cloudinaryPublicId);
@@ -49,6 +56,30 @@ exports.uploadDocuments = async (req, res) => {
   } catch (error) {
     console.error('Upload Error', error);
     res.status(500).json({ error: error.message || 'Failed to upload documents' });
+  }
+};
+
+exports.getUploadSignature = async (req, res) => {
+  try {
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request(
+      {
+        timestamp: timestamp,
+        folder: 'pdf_editor',
+      },
+      process.env.CLOUDINARY_API_SECRET
+    );
+
+    res.json({
+      signature,
+      timestamp,
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      folder: 'pdf_editor'
+    });
+  } catch (error) {
+    console.error('Signature Error:', error);
+    res.status(500).json({ error: 'Failed to generate signature' });
   }
 };
 

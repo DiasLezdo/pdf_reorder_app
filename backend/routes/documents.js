@@ -3,6 +3,9 @@ const router = express.Router();
 const documentController = require('../controllers/documentController');
 const { upload } = require('../services/cloudinaryService');
 
+// Get signature for direct upload
+router.get('/upload-signature', documentController.getUploadSignature);
+
 // Upload multiple PDFs
 router.post('/upload', upload.array('pdfs', 10), documentController.uploadDocuments);
 

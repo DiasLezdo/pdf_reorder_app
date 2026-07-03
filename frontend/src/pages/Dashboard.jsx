@@ -7,6 +7,7 @@ import { FileUp, FileText, Loader2 } from 'lucide-react';
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
   const [title, setTitle] = useState('');
+  const [fileProgress, setFileProgress] = useState({});
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -16,13 +17,22 @@ export default function Dashboard() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: () => uploadDocuments(files, title),
+    mutationFn: () => uploadDocuments(files, title, (fileIdx, progress) => {
+      setFileProgress(prev => ({
+        ...prev,
+        [fileIdx]: progress
+      }));
+    }),
     onSuccess: (data) => {
       queryClient.invalidateQueries(['documents']);
       setFiles([]);
+      setFileProgress({});
       setTitle('');
       navigate(`/editor/${data._id}`);
     },
+    onError: (err) => {
+      alert(`Upload failed: ${err.response?.data?.error || err.message}`);
+    }
   });
 
   const handleFileDrop = (e) => {
@@ -70,24 +80,43 @@ export default function Dashboard() {
         </div>
 
         {files.length > 0 && (
-          <div className="mt-6 space-y-2">
-            <h3 className="font-medium text-gray-700">Selected Files:</h3>
+          <div className="mt-6 space-y-3">
+            <div className="flex items-center justify-between">
+                <h3 className="font-medium text-gray-700">Selected Files:</h3>
+                <button onClick={() => setFiles([])} className="text-xs text-red-500 hover:underline">Clear all</button>
+            </div>
             {files.map((file, idx) => (
-              <div key={idx} className="flex items-center text-sm bg-gray-50 p-2 rounded-lg border">
-                <FileText className="h-4 w-4 mr-2 text-red-500" />
-                <span className="flex-1 truncate">{file.name}</span>
-                <span className="text-gray-500 text-xs">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+              <div key={idx} className="flex flex-col text-sm bg-gray-50 p-3 rounded-lg border">
+                <div className="flex items-center">
+                    <FileText className="h-4 w-4 mr-2 text-red-500" />
+                    <span className="flex-1 truncate font-medium">{file.name}</span>
+                    <span className="text-gray-500 text-xs">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+                {fileProgress[idx] !== undefined && (
+                   <div className="mt-2">
+                     <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                            className="bg-blue-600 h-full transition-all duration-300" 
+                            style={{ width: `${fileProgress[idx]}%` }}
+                        />
+                     </div>
+                     <span className="text-[10px] text-gray-500 mt-1 block">{fileProgress[idx]}% uploaded</span>
+                   </div>
+                )}
               </div>
             ))}
             
             <button 
               onClick={() => uploadMutation.mutate()}
               disabled={uploadMutation.isPending || !title}
-              className="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
+              className="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center transition-all"
             >
               {uploadMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : null}
-              {uploadMutation.isPending ? 'Uploading...' : 'Upload & Start Editing'}
+              {uploadMutation.isPending ? 'Processing Large PDFs...' : 'Upload & Start Editing'}
             </button>
+            {uploadMutation.isPending && (
+                <p className="text-[10px] text-center text-gray-400 mt-2 italic">Note: Large files are uploaded directly to cloud storage for maximum reliability.</p>
+            )}
           </div>
         )}
       </div>
